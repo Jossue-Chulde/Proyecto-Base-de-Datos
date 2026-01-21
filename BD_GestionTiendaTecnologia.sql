@@ -106,3 +106,52 @@ CREATE TABLE Inventario (
     CONSTRAINT FK_Inventario_Producto FOREIGN KEY (id_producto)
     REFERENCES Producto(id_producto)
 );
+
+-- Datos de Prueba
+INSERT INTO Clientes (nombre, cedula, correo, telefono) VALUES
+    ('Juan Pérez', '1754896328', 'juan.perez@email.com', '0985564487'),
+    ('María López', '1788741447', 'maria.lopez@email.com', '0988574583'),
+    ('Carlos Ramírez', '1796368574', 'carlos.ramirez@email.com', '0963638515');
+
+INSERT INTO Usuario (nombre, rol, username, contraseña) VALUES
+    ('Ana Torres', 'Administrador', 'ana.torres', 'ana123'),
+    ('Luis Gómez', 'Vendedor', 'luis.gomez', 'luisd123'),
+    ('Sofía Martínez', 'Vendedor', 'sofia.martinez', 'sofia123');
+
+INSERT INTO Ventas (fecha, total, metodo_de_pago, id_cliente, id_usuario) VALUES
+    ('2026-01-20', 320.00, 'Tarjeta', 1, 1),
+    ('2026-01-20', 730.00, 'Efectivo', 2, 2),
+    ('2026-01-20', 280.00, 'Transferencia', 3, 3);
+
+INSERT INTO Auditoria (fecha, tabla_afectada, accion, id_usuario) VALUES
+    (GETDATE(), 'Clientes', 'INSERT', 1),
+    (GETDATE(), 'Ventas', 'INSERT', 2),
+    (GETDATE(), 'Producto', 'INSERT', 3);
+
+INSERT INTO Marca (nombre_marca) VALUES
+    ('Intel'), ('AMD'), ('NVIDIA');
+
+INSERT INTO Producto (nombre, precio, id_marca) VALUES
+    ('Procesador Intel i7', 320.00, 1),
+    ('Tarjeta Gráfica NVIDIA RTX 3060', 450.00, 3),
+    ('Procesador AMD Ryzen 5', 280.00, 2);
+
+INSERT INTO Detalle_venta (cantidad, precio_unitario, subtotal, id_venta, id_producto) VALUES
+    (1, 320.00, 320.00, 1, 1),
+    (1, 450.00, 450.00, 2, 2),
+    (1, 280.00, 280.00, 3, 3),
+    (1, 280.00, 280.00, 2, 3);
+
+
+INSERT INTO Inventario (stock_total, id_producto) VALUES
+    (50, 1), (30, 2), (40, 3);
+
+-- Mostrar información de las tablas
+select * from Clientes;
+select * from Usuario;
+select * from Ventas;
+select * from Auditoria;
+select * from Marca;
+select * from Producto;
+select * from Detalle_venta;
+select * from Inventario;
