@@ -1,3 +1,6 @@
+create database GestionTiendaTecnologia;
+use GestionTiendaTecnologia;
+
 -- Tabla Clientes
 CREATE TABLE Clientes (
     id_cliente INT IDENTITY(1,1) PRIMARY KEY,
@@ -16,7 +19,7 @@ CREATE TABLE Usuario (
     nombre VARCHAR(100) NOT NULL,
     rol VARCHAR(50) NOT NULL,
     username VARCHAR(50) NOT NULL,
-    contrase�a VARCHAR(255) NOT NULL,
+    contraseña VARCHAR(255) NOT NULL,
 
     CONSTRAINT UQ_Usuario_Username UNIQUE (username)
 );
@@ -45,13 +48,11 @@ CREATE TABLE Auditoria (
     fecha DATETIME NOT NULL DEFAULT GETDATE(),
     tabla_afectada VARCHAR(50) NOT NULL,
     accion VARCHAR(10) NOT NULL,
-    id_usuario INT NOT NULL,
+    -- id_usuario INT NOT NULL, -- ELIMINADO
+    usuario_responsable VARCHAR(100) NOT NULL,
 
     CONSTRAINT CK_Auditoria_Accion 
-    CHECK (accion IN ('INSERT', 'UPDATE', 'DELETE')),
-
-    CONSTRAINT FK_Auditoria_Usuario FOREIGN KEY (id_usuario)
-    REFERENCES Usuario(id_usuario)
+    CHECK (accion IN ('INSERT', 'UPDATE', 'DELETE'))
 );
 
 -- Tabla Marca
@@ -107,33 +108,34 @@ CREATE TABLE Inventario (
     REFERENCES Producto(id_producto)
 );
 
+-----------------------------------------------------------------------
 -- Datos de Prueba
 INSERT INTO Clientes (nombre, cedula, correo, telefono) VALUES
-    ('Juan P�rez', '1754896328', 'juan.perez@email.com', '0985564487'),
-    ('Mar�a L�pez', '1788741447', 'maria.lopez@email.com', '0988574583'),
-    ('Carlos Ram�rez', '1796368574', 'carlos.ramirez@email.com', '0963638515');
+    ('Juan Pérez', '1754896328', 'juan.perez@email.com', '0985564487'),
+    ('María López', '1788741447', 'maria.lopez@email.com', '0988574583'),
+    ('Carlos Ramírez', '1796368574', 'carlos.ramirez@email.com', '0963638515');
 
-INSERT INTO Usuario (nombre, rol, username, contrase�a) VALUES
+INSERT INTO Usuario (nombre, rol, username, contraseña) VALUES
     ('Ana Torres', 'Administrador', 'ana.torres', 'ana123'),
-    ('Luis G�mez', 'Vendedor', 'luis.gomez', 'luisd123'),
-    ('Sof�a Mart�nez', 'Vendedor', 'sofia.martinez', 'sofia123');
+    ('Luis Gómez', 'Vendedor', 'luis.gomez', 'luisd123'),
+    ('Sofía Martínez', 'Vendedor', 'sofia.martinez', 'sofia123');
 
 INSERT INTO Ventas (fecha, total, metodo_de_pago, id_cliente, id_usuario) VALUES
     ('2026-01-20', 320.00, 'Tarjeta', 1, 1),
     ('2026-01-20', 730.00, 'Efectivo', 2, 2),
     ('2026-01-20', 280.00, 'Transferencia', 3, 3);
 
-INSERT INTO Auditoria (fecha, tabla_afectada, accion, id_usuario) VALUES
-    (GETDATE(), 'Clientes', 'INSERT', 1),
-    (GETDATE(), 'Ventas', 'INSERT', 2),
-    (GETDATE(), 'Producto', 'INSERT', 3);
+INSERT INTO Auditoria (fecha, tabla_afectada, accion, usuario_responsable) VALUES
+    (GETDATE(), 'Clientes', 'INSERT', 'Ana Torres'),
+    (GETDATE(), 'Ventas', 'INSERT', 'Luis Gómez'),
+    (GETDATE(), 'Producto', 'INSERT', 'Sofía Martínez');
 
 INSERT INTO Marca (nombre_marca) VALUES
     ('Intel'), ('AMD'), ('NVIDIA');
 
 INSERT INTO Producto (nombre, precio, id_marca) VALUES
     ('Procesador Intel i7', 320.00, 1),
-    ('Tarjeta Gr�fica NVIDIA RTX 3060', 450.00, 3),
+    ('Tarjeta Gráfica NVIDIA RTX 3060', 450.00, 3),
     ('Procesador AMD Ryzen 5', 280.00, 2);
 
 INSERT INTO Detalle_venta (cantidad, precio_unitario, subtotal, id_venta, id_producto) VALUES
@@ -146,7 +148,7 @@ INSERT INTO Detalle_venta (cantidad, precio_unitario, subtotal, id_venta, id_pro
 INSERT INTO Inventario (stock_total, id_producto) VALUES
     (50, 1), (30, 2), (40, 3);
 
--- Mostrar informaci�n de las tablas
+-- Mostrar información de las tablas
 select * from Clientes;
 select * from Usuario;
 select * from Ventas;
