@@ -157,7 +157,7 @@ select * from Marca;
 select * from Producto;
 select * from Detalle_venta;
 select * from Inventario;
-
+----------------------------------------------------------------------------------------
 -- Consultas y operaciones
 
 -- Consultas simples
@@ -178,7 +178,7 @@ WHERE id_marca = 1 AND precio > 300;
 SELECT id_venta, fecha, total 
 FROM Ventas 
 WHERE metodo_de_pago = 'Efectivo';
-
+---------------------------------------------------------------------------------------------
 -- Uso de Joins
 -- Reporte de ventas: Conecta Ventas, Detalle_venta, Producto y Clientes
 SELECT V.id_venta, C.nombre AS Cliente, P.nombre AS Producto, DV.cantidad, DV.subtotal
@@ -212,12 +212,207 @@ LEFT JOIN Ventas V ON C.id_cliente = V.id_cliente;
 SELECT M.nombre_marca, P.nombre AS Articulo
 FROM Producto P
 RIGHT JOIN Marca M ON P.id_marca = M.id_marca;
-
-
+----------------------------------------------------------------------------------------------
 -- Funciones de agregacion
+-- Función para Estadísticas de Ventas
+CREATE FUNCTION dbo.FN_EstadisticasVentas(@fecha_inicio DATE, @fecha_fin DATE)
+RETURNS TABLE
+AS
+RETURN (
+    SELECT 
+        COUNT(DISTINCT V.id_venta) AS total_ventas,
+        SUM(V.total) AS ingresos_totales,
+        AVG(V.total) AS ticket_promedio,
+        COUNT(DISTINCT V.id_cliente) AS clientes_unicos,
+        SUM(DV.cantidad) AS productos_vendidos
+    FROM Ventas V
+    INNER JOIN Detalle_venta DV ON V.id_venta = DV.id_venta
+    WHERE V.fecha BETWEEN @fecha_inicio AND @fecha_fin
+);
+GO
 
+-- Función para Stock Crítico, mostrara alertas
+CREATE FUNCTION dbo.FN_ProductosStockBajo(@umbral INT)
+RETURNS TABLE
+AS
+RETURN (
+    SELECT 
+        P.nombre AS producto,
+        M.nombre_marca AS marca,
+        I.stock_total AS stock_actual,
+        @umbral AS umbral_minimo,
+        CASE 
+            WHEN I.stock_total = 0 THEN 'AGOTADO'
+            WHEN I.stock_total < @umbral THEN 'BAJO STOCK'
+            ELSE 'DISPONIBLE'
+        END AS estado_stock
+    FROM Inventario I
+    INNER JOIN Producto P ON I.id_producto = P.id_producto
+    INNER JOIN Marca M ON P.id_marca = M.id_marca
+    WHERE I.stock_total < @umbral
+);
+GO
+
+-- Función para Ventas por Cliente para mostrar en el perfil del cliente sus compras
+CREATE FUNCTION dbo.FN_HistorialCliente(@id_cliente INT)
+RETURNS TABLE
+AS
+RETURN (
+    SELECT 
+        V.fecha,
+        V.total AS monto_total,
+        COUNT(DV.id_detalle_venta) AS items_comprados,
+        STRING_AGG(P.nombre, ', ') WITHIN GROUP (ORDER BY P.nombre) AS productos_comprados
+    FROM Ventas V
+    INNER JOIN Detalle_venta DV ON V.id_venta = DV.id_venta
+    INNER JOIN Producto P ON DV.id_producto = P.id_producto
+    WHERE V.id_cliente = @id_cliente
+    GROUP BY V.id_venta, V.fecha, V.total
+);
+GO
+
+-- Función para Ranking de Productos y mostrar el top productos
+CREATE FUNCTION dbo.FN_TopProductosVendidos(@top_n INT, @fecha_inicio DATE, @fecha_fin DATE)
+RETURNS TABLE
+AS
+RETURN (
+    SELECT TOP (@top_n)
+        P.nombre AS producto,
+        M.nombre_marca AS marca,
+        SUM(DV.cantidad) AS unidades_vendidas,
+        SUM(DV.subtotal) AS ingresos_generados,
+        ROUND(SUM(DV.subtotal) * 100.0 / (SELECT SUM(total) FROM Ventas WHERE fecha BETWEEN @fecha_inicio AND @fecha_fin), 2) AS porcentaje_ingresos
+    FROM Detalle_venta DV
+    INNER JOIN Ventas V ON DV.id_venta = V.id_venta
+    INNER JOIN Producto P ON DV.id_producto = P.id_producto
+    INNER JOIN Marca M ON P.id_marca = M.id_marca
+    WHERE V.fecha BETWEEN @fecha_inicio AND @fecha_fin
+    GROUP BY P.nombre, M.nombre_marca
+    ORDER BY unidades_vendidas DESC
+);
+GO
+------------------------------------------------------------------------------------------
 -- Funciones de cadena
+-- Función para Formatear Nombres 
+CREATE FUNCTION dbo.FN_FormatearNombre(@nombre_completo VARCHAR(100))
+RETURNS VARCHAR(100)
+AS
+BEGIN
+    DECLARE @nombre_formateado VARCHAR(100);
+    
+    -- Convertir a minúsculas y luego capitalizar cada palabra
+    SET @nombre_formateado = LOWER(@nombre_completo);
+    
+    -- Capitalizar primera letra de cada palabra (simple)
+    SET @nombre_formateado = UPPER(LEFT(@nombre_formateado, 1)) + 
+                             SUBSTRING(@nombre_formateado, 2, LEN(@nombre_formateado));
+    
+    RETURN @nombre_formateado;
+END;
+GO
 
+-- Función para Ocultar Email
+CREATE FUNCTION dbo.FN_OcultarEmail(@email VARCHAR(100))
+RETURNS VARCHAR(100)
+AS
+BEGIN
+    DECLARE @usuario VARCHAR(50);
+    DECLARE @dominio VARCHAR(50);
+    DECLARE @email_oculto VARCHAR(100);
+    
+    -- Separar usuario y dominio
+    SET @usuario = LEFT(@email, CHARINDEX('@', @email) - 1);
+    SET @dominio = SUBSTRING(@email, CHARINDEX('@', @email) + 1, LEN(@email));
+    
+    -- Ocultar parte del usuario (mostrar solo primeros 3 caracteres)
+    IF LEN(@usuario) > 3
+        SET @usuario = LEFT(@usuario, 3) + REPLICATE('*', LEN(@usuario) - 3);
+    
+    SET @email_oculto = @usuario + '@' + @dominio;
+    
+    RETURN @email_oculto;
+END;
+GO
+
+-- Función para mostrar precios consistentemente
+CREATE FUNCTION dbo.FN_FormatearPrecio(@precio DECIMAL(10,2), @moneda VARCHAR(10))
+RETURNS VARCHAR(50)
+AS
+BEGIN
+    DECLARE @precio_formateado VARCHAR(50);
+    
+    -- Formato según moneda
+    IF UPPER(@moneda) = 'USD'
+        SET @precio_formateado = '$' + CONVERT(VARCHAR, FORMAT(@precio, 'N2'));
+    ELSE IF UPPER(@moneda) = 'EUR'
+        SET @precio_formateado = '€' + CONVERT(VARCHAR, FORMAT(@precio, 'N2'));
+    ELSE
+        SET @precio_formateado = FORMAT(@precio, 'N2') + ' ' + @moneda;
+    
+    RETURN @precio_formateado;
+END;
+GO
+
+-- Función para generar códigos de búsqueda consistentes
+CREATE FUNCTION dbo.FN_GenerarCodigoBusqueda(@texto VARCHAR(100))
+RETURNS VARCHAR(100)
+AS
+BEGIN
+    DECLARE @codigo VARCHAR(100);
+    
+    -- Eliminar espacios, convertir a mayúsculas y quitar caracteres especiales
+    SET @codigo = UPPER(@texto);
+    SET @codigo = REPLACE(@codigo, ' ', '');
+    SET @codigo = REPLACE(@codigo, '-', '');
+    SET @codigo = REPLACE(@codigo, '_', '');
+    
+    -- Mantener solo letras y números
+    DECLARE @i INT = 1;
+    DECLARE @resultado VARCHAR(100) = '';
+    
+    WHILE @i <= LEN(@codigo)
+    BEGIN
+        IF SUBSTRING(@codigo, @i, 1) LIKE '[A-Z0-9]'
+            SET @resultado = @resultado + SUBSTRING(@codigo, @i, 1);
+        SET @i = @i + 1;
+    END
+    
+    RETURN @resultado;
+END;
+GO
+
+-- Función para validar contraseñas durante el registro de usuarios
+CREATE FUNCTION dbo.FN_ValidarFortalezaPassword(@password VARCHAR(255))
+RETURNS VARCHAR(100)
+AS
+BEGIN
+    DECLARE @resultado VARCHAR(100);
+    
+    -- Verificar longitud mínima
+    IF LEN(@password) < 8
+        RETURN 'DEBIL: Mínimo 8 caracteres';
+    
+    -- Verificar mayúsculas
+    IF @password COLLATE Latin1_General_CS_AS = LOWER(@password) COLLATE Latin1_General_CS_AS
+        RETURN 'DEBIL: Falta mayúscula';
+    
+    -- Verificar minúsculas
+    IF @password COLLATE Latin1_General_CS_AS = UPPER(@password) COLLATE Latin1_General_CS_AS
+        RETURN 'DEBIL: Falta minúscula';
+    
+    -- Verificar números
+    IF @password NOT LIKE '%[0-9]%'
+        RETURN 'DEBIL: Falta número';
+    
+    -- Verificar caracteres especiales
+    IF @password NOT LIKE '%[!@#$%^&*()]%'
+        RETURN 'MEDIA: Agrega caracter especial';
+    
+    RETURN 'FUERTE: Contraseña segura';
+END;
+GO
+
+----------------------------------------------------------------------------------------------------
 -- Subconsulta: Productos cuyo stock es menor al promedio global de stock
 SELECT nombre FROM Producto 
 WHERE id_producto IN (
@@ -235,7 +430,6 @@ JOIN Inventario I ON P.id_producto = I.id_producto
 GROUP BY M.nombre_marca;
 
 GO
-
 
 -- Ejemplos de insercion 
 -- Agregar un nuevo producto al catálogo
