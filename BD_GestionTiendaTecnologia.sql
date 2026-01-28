@@ -157,6 +157,7 @@ select * from Marca;
 select * from Producto;
 select * from Detalle_venta;
 select * from Inventario;
+------------------------------------------------------------------------------
 
 -- Consultas y operaciones
 
@@ -178,6 +179,8 @@ WHERE id_marca = 1 AND precio > 300;
 SELECT id_venta, fecha, total 
 FROM Ventas 
 WHERE metodo_de_pago = 'Efectivo';
+
+-------------------------------------------------------------------------------
 
 -- Uso de Joins
 -- Reporte de ventas: Conecta Ventas, Detalle_venta, Producto y Clientes
@@ -213,6 +216,7 @@ SELECT M.nombre_marca, P.nombre AS Articulo
 FROM Producto P
 RIGHT JOIN Marca M ON P.id_marca = M.id_marca;
 ------------------------------------------------------------------------------------------
+
 -- Funciones de agregacion
 -- 1. Función para obtener estadísticas de ventas por período
 SELECT 
@@ -227,6 +231,7 @@ SELECT
     VAR(total) AS Varianza
 FROM Ventas
 WHERE fecha BETWEEN '2026-01-01' AND '2026-01-31';
+
 
 -- 2. Análisis de inventario por marca con múltiples agregaciones
 SELECT 
@@ -291,6 +296,7 @@ FROM Ventas
 GROUP BY metodo_de_pago
 ORDER BY Total_Recaudado DESC;
 -------------------------------------------------------------------------------------------------
+
 -- Funciones de cadena
 -- 1. Formateo de información de clientes
 SELECT 
@@ -437,8 +443,11 @@ SELECT
     nombre_marca,
     dbo.CalcularValorInventarioMarca(id_marca) AS Valor_Total_Inventario
 FROM Marca;
+
 -------------------------------------------------------------------------------------
+
 -- Subconsulta: Productos cuyo stock es menor al promedio global de stock
+
 SELECT nombre FROM Producto 
 WHERE id_producto IN (
     SELECT id_producto FROM Inventario WHERE stock_total < (SELECT AVG(stock_total) FROM Inventario)
@@ -473,6 +482,7 @@ WHERE id_producto = 1;
 -- Eliminar un registro de auditoría antiguo (Ejemplo de limpieza)
 DELETE FROM Auditoria WHERE fecha < '2024-01-01';
 
+------------------------------------------------------------------------------
 
 -- Administración y seguridad
 -- Crear Roles para la aplicación 
@@ -583,8 +593,75 @@ END;
 GO
 
 -- Insertar un cliente de prueba para activar el trigger de INSERT
-INSERT INTO Clientes (nombre, correo, telefono, direccion)
-VALUES ('Prueba Auditoria', 'test@epn.edu.ec', '0999999999', 'Quito');
+INSERT INTO Clientes (nombre, correo, telefono)
+VALUES ('Prueba Auditoria', 'test@epn.edu.ec', '0999999999');
 
 -- Consultar la tabla de auditoría para ver si el Trigger dejó huella
 SELECT * FROM Auditoria;
+
+----------------------------------------------------------------------------
+
+-- INDICES
+-- Índice para búsquedas de ventas por cliente
+CREATE INDEX IDX_Ventas_Cliente
+ON Ventas(id_cliente);
+
+-- Índice para búsquedas de ventas por fecha
+CREATE INDEX IDX_Ventas_Fecha
+ON Ventas(fecha);
+
+-- Índice para joins frecuentes en detalle de ventas
+CREATE INDEX IDX_Detalle_Producto
+ON Detalle_venta(id_producto);
+
+EXEC sp_helpindex 'Detalle_venta';
+EXEC sp_helpindex 'Ventas';
+
+
+------------------------------------------------------------------------------
+
+-- EXPLAIN
+SET STATISTICS IO ON;
+SET STATISTICS TIME ON;
+GO
+
+SELECT V.id_venta, C.nombre, V.total
+FROM Ventas V
+JOIN Clientes C ON V.id_cliente = C.id_cliente
+WHERE V.fecha BETWEEN '2026-01-01' AND '2026-01-31';
+GO
+
+SET STATISTICS IO OFF;
+SET STATISTICS TIME OFF;
+GO
+
+--------------------------------------------------------------------------------
+-- Ejemplo ACID (Atomicidad, Consistencia, Aislamiento y Durabilidad)
+-- Transaccion
+
+BEGIN TRANSACTION;
+
+INSERT INTO Ventas (fecha, total, metodo_de_pago, id_cliente, id_usuario)
+VALUES (GETDATE(), 500.00, 'Tarjeta', 1, 1);
+
+DECLARE @id_venta INT = SCOPE_IDENTITY();
+
+INSERT INTO Detalle_venta (cantidad, precio_unitario, subtotal, id_venta, id_producto)
+VALUES (1, 500.00, 500.00, @id_venta, 1);
+
+-- Si todo sale bien
+COMMIT;
+
+
+
+BEGIN TRANSACTION;
+
+INSERT INTO Ventas (fecha, total, metodo_de_pago, id_cliente, id_usuario)
+VALUES (GETDATE(), 999.00, 'Efectivo', 1, 1);
+
+-- ERROR intencional (producto inexistente)
+INSERT INTO Detalle_venta (cantidad, precio_unitario, subtotal, id_venta, id_producto)
+VALUES (1, 999.00, 999.00, SCOPE_IDENTITY(), 9999);
+
+-- Si ocurre error
+ROLLBACK;
