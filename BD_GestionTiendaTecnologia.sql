@@ -298,3 +298,73 @@ GO
 SELECT id_usuario, nombre, rol, username, contraseña AS Password_Cifrado 
 FROM Usuario;
 GO
+
+-- BACKUPS
+-- Generar Backup Completo
+BACKUP DATABASE GestionTiendaTecnologia 
+TO DISK = 'C:\Backups\Tienda_Full.bak' 
+WITH FORMAT, NAME = 'Respaldo Completo de la Tienda';
+GO
+
+-- para hacer la restauracion
+-- Siempre cámbiate a la base 'master' para no bloquear la restauración
+USE master;
+GO
+
+-- Este comando "abre" el archivo y recrea la base de datos
+RESTORE DATABASE GestionTiendaTecnologia 
+FROM DISK = 'C:\Backups\Tienda_Full.bak' 
+WITH REPLACE;
+GO
+
+-- Se realiza con la base en uso (Online)
+BACKUP DATABASE GestionTiendaTecnologia 
+TO DISK = 'C:\Backups\Tienda_Hot.bak' 
+WITH NOSKIP, NOFORMAT;
+GO
+
+-- Respaldo del Log (Equivalente a Incremental)
+BACKUP LOG GestionTiendaTecnologia 
+TO DISK = 'C:\Backups\Tienda_Log.trn';
+GO
+
+-- AUDITORIA
+-- Trigger para insert 
+CREATE TRIGGER trg_Auditoria_Ventas_Insert
+ON Ventas
+AFTER INSERT
+AS
+BEGIN
+    INSERT INTO Auditoria (tabla_afectada, accion, usuario_responsable)
+    VALUES ('Ventas', 'INSERT', SYSTEM_USER);
+END;
+GO
+
+-- Trigger para update 
+CREATE TRIGGER trg_Auditoria_Producto_Update
+ON Producto
+AFTER UPDATE
+AS
+BEGIN
+    INSERT INTO Auditoria (tabla_afectada, accion, usuario_responsable)
+    VALUES ('Producto', 'UPDATE', SYSTEM_USER);
+END;
+GO
+
+-- Tigger para delete
+CREATE TRIGGER trg_Auditoria_Cliente_Delete
+ON Clientes
+AFTER DELETE
+AS
+BEGIN
+    INSERT INTO Auditoria (tabla_afectada, accion, usuario_responsable)
+    VALUES ('Clientes', 'DELETE', SYSTEM_USER);
+END;
+GO
+
+-- Insertar un cliente de prueba para activar el trigger de INSERT
+INSERT INTO Clientes (nombre, correo, telefono, direccion)
+VALUES ('Prueba Auditoria', 'test@epn.edu.ec', '0999999999', 'Quito');
+
+-- Consultar la tabla de auditoría para ver si el Trigger dejó huella
+SELECT * FROM Auditoria;
