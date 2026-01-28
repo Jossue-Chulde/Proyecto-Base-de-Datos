@@ -157,3 +157,70 @@ select * from Marca;
 select * from Producto;
 select * from Detalle_venta;
 select * from Inventario;
+
+-- Consultas y operaciones
+
+-- Consultas simples
+-- Listar todos los nombres de los productos y sus precios
+SELECT nombre, precio FROM Producto;
+
+-- Conculta con condiciones 
+-- Buscar clientes con correos específicos que tengan un teléfono registrado
+SELECT nombre, correo FROM Clientes 
+WHERE correo LIKE '%@email.com' AND telefono IS NOT NULL;
+
+-- Uso de Joins
+-- Reporte maestro de ventas: Conecta Ventas, Detalle_venta, Producto y Clientes
+SELECT V.id_venta, C.nombre AS Cliente, P.nombre AS Producto, DV.cantidad, DV.subtotal
+FROM Ventas V
+INNER JOIN Clientes C ON V.id_cliente = C.id_cliente
+INNER JOIN Detalle_venta DV ON V.id_venta = DV.id_venta
+INNER JOIN Producto P ON DV.id_producto = P.id_producto;
+
+-- Inventario por Marca: Conecta Inventario, Producto y Marca
+SELECT M.nombre_marca, P.nombre, I.stock_total
+FROM Inventario I
+INNER JOIN Producto P ON I.id_producto = P.id_producto
+INNER JOIN Marca M ON P.id_marca = M.id_marca;
+
+-- Registro de actividad: Conecta Ventas con el Vendedor
+SELECT V.id_venta, U.nombre AS Vendedor, V.total
+FROM Ventas V
+INNER JOIN Usuario U ON V.id_usuario = U.id_usuario;
+
+-- Funciones de agregacion
+
+-- Funciones de cadena
+
+-- Subconsulta: Productos cuyo stock es menor al promedio global de stock
+SELECT nombre FROM Producto 
+WHERE id_producto IN (
+    SELECT id_producto FROM Inventario WHERE stock_total < (SELECT AVG(stock_total) FROM Inventario)
+);
+
+-- Vista: Resumen de stock por marca para gerencia
+GO
+
+CREATE VIEW Vista_Stock_Marcas AS
+SELECT M.nombre_marca, SUM(I.stock_total) AS Total_Unidades
+FROM Marca M
+JOIN Producto P ON M.id_marca = P.id_marca
+JOIN Inventario I ON P.id_producto = I.id_producto
+GROUP BY M.nombre_marca;
+
+GO
+
+
+-- Ejemplos de insercion 
+-- Agregar un nuevo producto al catálogo
+INSERT INTO Producto (nombre, precio, id_marca) VALUES 
+('Laptop Asus ROG', 1200.00, 1),
+('Laptop TUF Gaming A16', 1400.00, 2);
+
+-- Actualizar el stock tras una recepción de mercadería
+UPDATE Inventario 
+SET stock_total = stock_total + 20 
+WHERE id_producto = 1;
+
+-- Eliminar un registro de auditoría antiguo (Ejemplo de limpieza)
+DELETE FROM Auditoria WHERE fecha < '2024-01-01';
