@@ -169,8 +169,18 @@ SELECT nombre, precio FROM Producto;
 SELECT nombre, correo FROM Clientes 
 WHERE correo LIKE '%@email.com' AND telefono IS NOT NULL;
 
+-- Buscar productos de la marca con ID 1 que superen los $300 (Gama alta)
+SELECT nombre, precio 
+FROM Producto 
+WHERE id_marca = 1 AND precio > 300;
+
+-- Buscar ventas realizadas exclusivamente con el método de pago 'Efectivo'
+SELECT id_venta, fecha, total 
+FROM Ventas 
+WHERE metodo_de_pago = 'Efectivo';
+
 -- Uso de Joins
--- Reporte maestro de ventas: Conecta Ventas, Detalle_venta, Producto y Clientes
+-- Reporte de ventas: Conecta Ventas, Detalle_venta, Producto y Clientes
 SELECT V.id_venta, C.nombre AS Cliente, P.nombre AS Producto, DV.cantidad, DV.subtotal
 FROM Ventas V
 INNER JOIN Clientes C ON V.id_cliente = C.id_cliente
@@ -187,6 +197,22 @@ INNER JOIN Marca M ON P.id_marca = M.id_marca;
 SELECT V.id_venta, U.nombre AS Vendedor, V.total
 FROM Ventas V
 INNER JOIN Usuario U ON V.id_usuario = U.id_usuario;
+
+-- Muestra todos los productos y su ID de venta; si no aparece ID, el producto no se ha vendido
+SELECT P.nombre, DV.id_venta
+FROM Producto P
+LEFT JOIN Detalle_venta DV ON P.id_producto = DV.id_producto;
+
+-- Lista todos los clientes y sus fechas de compra, incluyendo los que aún no han comprado
+SELECT C.nombre, V.fecha
+FROM Clientes C
+LEFT JOIN Ventas V ON C.id_cliente = V.id_cliente;
+
+-- Muestra todas las marcas registradas y qué productos tienen asociados
+SELECT M.nombre_marca, P.nombre AS Articulo
+FROM Producto P
+RIGHT JOIN Marca M ON P.id_marca = M.id_marca;
+
 
 -- Funciones de agregacion
 
@@ -224,3 +250,5 @@ WHERE id_producto = 1;
 
 -- Eliminar un registro de auditoría antiguo (Ejemplo de limpieza)
 DELETE FROM Auditoria WHERE fecha < '2024-01-01';
+
+-- Administración y seguridad
