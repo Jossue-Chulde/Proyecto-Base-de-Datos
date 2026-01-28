@@ -212,8 +212,232 @@ LEFT JOIN Ventas V ON C.id_cliente = V.id_cliente;
 SELECT M.nombre_marca, P.nombre AS Articulo
 FROM Producto P
 RIGHT JOIN Marca M ON P.id_marca = M.id_marca;
+------------------------------------------------------------------------------------------
+-- Funciones de agregacion
+-- 1. Función para obtener estadísticas de ventas por período
+SELECT 
+    -- Funciones de agregación básicas
+    COUNT(*) AS Total_Ventas,
+    SUM(total) AS Ingreso_Total,
+    AVG(total) AS Promedio_Venta,
+    MIN(total) AS Venta_Minima,
+    MAX(total) AS Venta_Maxima,
+    -- Estadísticas adicionales
+    STDEV(total) AS Desviacion_Estandar,
+    VAR(total) AS Varianza
+FROM Ventas
+WHERE fecha BETWEEN '2026-01-01' AND '2026-01-31';
 
+-- 2. Análisis de inventario por marca con múltiples agregaciones
+SELECT 
+    M.nombre_marca,
+    COUNT(P.id_producto) AS Cantidad_Productos,
+    SUM(I.stock_total) AS Stock_Total,
+    AVG(P.precio) AS Precio_Promedio,
+    SUM(P.precio * I.stock_total) AS Valor_Total_Inventario,
+    MIN(P.precio) AS Producto_Mas_Barato,
+    MAX(P.precio) AS Producto_Mas_Caro
+FROM Marca M
+JOIN Producto P ON M.id_marca = P.id_marca
+JOIN Inventario I ON P.id_producto = I.id_producto
+GROUP BY M.nombre_marca
+HAVING SUM(I.stock_total) > 0
+ORDER BY Valor_Total_Inventario DESC;
 
+-- 3. Estadísticas de ventas por cliente
+SELECT 
+    C.nombre AS Cliente,
+    COUNT(V.id_venta) AS Total_Compras,
+    SUM(V.total) AS Total_Gastado,
+    AVG(V.total) AS Promedio_por_Compra,
+    -- Cálculo del valor del cliente (CLV)
+    (SUM(V.total) / NULLIF(COUNT(V.id_venta), 0)) * COUNT(V.id_venta) AS CLV_Estimado,
+    -- Análisis de frecuencia
+    DATEDIFF(DAY, MIN(V.fecha), MAX(V.fecha)) / NULLIF(COUNT(V.id_venta), 1) AS Dias_entre_Compras
+FROM Clientes C
+LEFT JOIN Ventas V ON C.id_cliente = V.id_cliente
+GROUP BY C.nombre, C.id_cliente
+HAVING COUNT(V.id_venta) > 0
+ORDER BY Total_Gastado DESC;
+
+-- 4. Análisis de productos más vendidos
+SELECT 
+    P.nombre AS Producto,
+    M.nombre_marca AS Marca,
+    -- Estadísticas de ventas
+    SUM(DV.cantidad) AS Total_Vendido,
+    COUNT(DISTINCT DV.id_venta) AS Veces_Vendido,
+    SUM(DV.subtotal) AS Ingreso_Generado,
+    AVG(DV.precio_unitario) AS Precio_Promedio_Venta,
+    -- Porcentaje del total
+    ROUND(SUM(DV.subtotal) * 100.0 / (SELECT SUM(subtotal) FROM Detalle_venta), 2) AS Porcentaje_Ingresos
+FROM Producto P
+JOIN Marca M ON P.id_marca = M.id_marca
+JOIN Detalle_venta DV ON P.id_producto = DV.id_producto
+GROUP BY P.nombre, M.nombre_marca, P.id_producto
+HAVING SUM(DV.cantidad) > 0
+ORDER BY Total_Vendido DESC;
+
+-- 5. Análisis de métodos de pago
+SELECT 
+    metodo_de_pago,
+    COUNT(*) AS Cantidad_Ventas,
+    SUM(total) AS Total_Recaudado,
+    AVG(total) AS Ticket_Promedio,
+    -- Análisis de distribución
+    ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM Ventas), 2) AS Porcentaje_Uso,
+    ROUND(SUM(total) * 100.0 / (SELECT SUM(total) FROM Ventas), 2) AS Porcentaje_Monto
+FROM Ventas
+GROUP BY metodo_de_pago
+ORDER BY Total_Recaudado DESC;
+-------------------------------------------------------------------------------------------------
+-- Funciones de cadena
+-- 1. Formateo de información de clientes
+SELECT 
+    id_cliente,
+    -- Concatenación y formateo
+    UPPER(nombre) AS Nombre_Mayusculas,
+    LOWER(correo) AS Correo_Minusculas,
+    -- Extracción de partes
+    LEFT(nombre, CHARINDEX(' ', nombre + ' ') - 1) AS Primer_Nombre,
+    RIGHT(nombre, CHARINDEX(' ', REVERSE(nombre) + ' ') - 1) AS Primer_Apellido,
+    -- Manipulación de correo
+    SUBSTRING(correo, 1, CHARINDEX('@', correo) - 1) AS Usuario_Correo,
+    SUBSTRING(correo, CHARINDEX('@', correo) + 1, LEN(correo)) AS Dominio,
+    -- Formateo de teléfono
+    CASE 
+        WHEN LEN(telefono) = 10 THEN '(' + SUBSTRING(telefono, 1, 3) + ') ' + 
+                                   SUBSTRING(telefono, 4, 3) + '-' + 
+                                   SUBSTRING(telefono, 7, 4)
+        ELSE telefono
+    END AS Telefono_Formateado,
+    -- Validación de datos
+    CASE 
+        WHEN correo LIKE '%@%.%' THEN 'Correo Válido'
+        ELSE 'Correo Inválido'
+    END AS Validacion_Correo
+FROM Clientes;
+
+-- 2. Normalización y análisis de nombres de productos
+SELECT 
+    id_producto,
+    nombre,
+    -- Limpieza de texto
+    LTRIM(RTRIM(nombre)) AS Nombre_Limpio,
+    -- Búsqueda de palabras clave
+    CASE 
+        WHEN CHARINDEX('Intel', nombre) > 0 THEN 'Intel'
+        WHEN CHARINDEX('AMD', nombre) > 0 THEN 'AMD' 
+        WHEN CHARINDEX('NVIDIA', nombre) > 0 THEN 'NVIDIA'
+        ELSE 'Otra Marca'
+    END AS Marca_Detectada,
+    -- Clasificación por tipo
+    CASE
+        WHEN nombre LIKE '%Procesador%' OR nombre LIKE '%CPU%' THEN 'Procesador'
+        WHEN nombre LIKE '%Tarjeta Gráfica%' OR nombre LIKE '%GPU%' OR nombre LIKE '%RTX%' THEN 'Tarjeta Gráfica'
+        WHEN nombre LIKE '%Laptop%' OR nombre LIKE '%Notebook%' THEN 'Laptop'
+        ELSE 'Otro Componente'
+    END AS Categoria_Producto,
+    -- Extracción de modelo
+    SUBSTRING(nombre, CHARINDEX(' ', nombre) + 1, LEN(nombre)) AS Modelo,
+    -- Contador de palabras
+    LEN(nombre) - LEN(REPLACE(nombre, ' ', '')) + 1 AS Palabras_en_Nombre
+FROM Producto;
+
+-- 3. Generación de códigos y referencias únicas
+SELECT 
+    id_producto,
+    nombre,
+    -- Generación de SKU
+    UPPER(
+        LEFT(REPLACE(nombre, ' ', ''), 3) + 
+        RIGHT('000' + CAST(id_producto AS VARCHAR), 3) +
+        SUBSTRING(CONVERT(VARCHAR(6), GETDATE(), 12), 3, 4)
+    ) AS SKU_Generado,
+    -- Código abreviado
+    LEFT(REPLACE(REPLACE(nombre, ' ', ''), '-', ''), 8) AS Codigo_Corto,
+    -- Referencia para búsqueda
+    REPLACE(REPLACE(REPLACE(LOWER(nombre), ' ', '_'), 'á', 'a'), 'é', 'e') AS Slug_URL
+FROM Producto;
+
+-- 4. Análisis de nombres de usuarios y seguridad
+SELECT 
+    id_usuario,
+    nombre,
+    username,
+    -- Análisis de nombre de usuario
+    CASE 
+        WHEN username LIKE '%.%' THEN 'Contiene punto'
+        WHEN PATINDEX('%[0-9]%', username) > 0 THEN 'Contiene números'
+        ELSE 'Solo letras'
+    END AS Tipo_Username,
+    -- Validación de fortaleza de nombre de usuario
+    CASE
+        WHEN LEN(username) >= 8 AND username LIKE '%[a-z]%' 
+             AND username LIKE '%[A-Z]%' AND PATINDEX('%[0-9]%', username) > 0 
+             THEN 'Fuerte'
+        WHEN LEN(username) >= 6 THEN 'Moderada'
+        ELSE 'Débil'
+    END AS Fortaleza_Username,
+    -- Máscara de contraseña (solo para demostración)
+    REPLICATE('*', LEN(contraseña)) AS Password_Masked,
+    -- Iniciales del usuario
+    LEFT(nombre, 1) + 
+    ISNULL(LEFT(SUBSTRING(nombre, CHARINDEX(' ', nombre) + 1, LEN(nombre)), 1), '') AS Iniciales
+FROM Usuario;
+
+-- 5. Formateo de información de ventas para reportes
+SELECT 
+    V.id_venta,
+    -- Número de factura formateado
+    'FACT-' + RIGHT('00000' + CAST(V.id_venta AS VARCHAR), 5) AS Numero_Factura,
+    -- Fecha formateada
+    FORMAT(V.fecha, 'dd/MM/yyyy HH:mm') AS Fecha_Formateada,
+    -- Cliente con formato
+    UPPER(LEFT(C.nombre, 1)) + LOWER(SUBSTRING(C.nombre, 2, LEN(C.nombre))) AS Cliente_Formateado,
+    -- Total con formato monetario
+    '$' + FORMAT(V.total, 'N2') AS Total_Formateado,
+    -- Detalle concatenado de productos
+    STUFF((
+        SELECT ', ' + CAST(DV.cantidad AS VARCHAR) + 'x ' + P.nombre
+        FROM Detalle_venta DV
+        JOIN Producto P ON DV.id_producto = P.id_producto
+        WHERE DV.id_venta = V.id_venta
+        FOR XML PATH(''), TYPE
+    ).value('.', 'VARCHAR(MAX)'), 1, 2, '') AS Productos_Comprados,
+    -- Resumen de la venta
+    CONCAT(
+        'Venta #', V.id_venta, 
+        ' - Cliente: ', LEFT(C.nombre, CHARINDEX(' ', C.nombre + ' ') - 1),
+        ' - Total: $', CAST(V.total AS DECIMAL(10,2))
+    ) AS Resumen_Venta
+FROM Ventas V
+JOIN Clientes C ON V.id_cliente = C.id_cliente;
+
+-- 6. Función para calcular valor total del inventario por marca (función escalar)
+GO
+
+CREATE FUNCTION dbo.CalcularValorInventarioMarca (@id_marca INT)
+RETURNS DECIMAL(15,2)
+AS
+BEGIN
+    DECLARE @valor_total DECIMAL(15,2);
+    
+    SELECT @valor_total = SUM(P.precio * I.stock_total)
+    FROM Producto P
+    JOIN Inventario I ON P.id_producto = I.id_producto
+    WHERE P.id_marca = @id_marca;
+    
+    RETURN ISNULL(@valor_total, 0);
+END;
+GO
+
+-- Uso de la función
+SELECT 
+    nombre_marca,
+    dbo.CalcularValorInventarioMarca(id_marca) AS Valor_Total_Inventario
+FROM Marca;
+-------------------------------------------------------------------------------------
 -- Subconsulta: Productos cuyo stock es menor al promedio global de stock
 SELECT nombre FROM Producto 
 WHERE id_producto IN (
