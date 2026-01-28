@@ -214,10 +214,6 @@ FROM Producto P
 RIGHT JOIN Marca M ON P.id_marca = M.id_marca;
 
 
--- Funciones de agregacion
-
--- Funciones de cadena
-
 -- Subconsulta: Productos cuyo stock es menor al promedio global de stock
 SELECT nombre FROM Producto 
 WHERE id_producto IN (
